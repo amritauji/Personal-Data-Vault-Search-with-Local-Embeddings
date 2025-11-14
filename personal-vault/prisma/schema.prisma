@@ -14,6 +14,17 @@ model Note {
   id         Int      @id @default(autoincrement())
   title      String
   content    String
-  embedding  String // JSON array of floats
+  embedding  String
+  createdAt  DateTime @default(now())
+}
+
+model VaultItem {
+  id         Int      @id @default(autoincrement())
+  title      String
+  content    String?
+  tags       String   // JSON array of tags
+  type       String   // document, card, id
+  category   String
+  embedding  String
   createdAt  DateTime @default(now())
 }
