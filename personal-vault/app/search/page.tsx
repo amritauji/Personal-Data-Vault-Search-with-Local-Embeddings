@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Shield, Settings, Home, Key, User, Search, ArrowLeft } from "lucide-react";
+import { Shield, Settings, Home, Key, User, Search, ArrowLeft, Eye, FileText, CreditCard, IdCard, X } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 
@@ -9,6 +9,9 @@ export default function SearchPage() {
     const [query, setQuery] = useState("");
     const [results, setResults] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
+    const [popularTags, setPopularTags] = useState<string[]>([]);
+    const [showViewModal, setShowViewModal] = useState(false);
+    const [selectedItem, setSelectedItem] = useState(null);
     const searchParams = useSearchParams();
 
     useEffect(() => {
@@ -17,7 +20,27 @@ export default function SearchPage() {
             setQuery(q);
             searchNotesWithQuery(q);
         }
+        loadPopularTags();
     }, [searchParams]);
+
+    const loadPopularTags = async () => {
+        try {
+            const res = await fetch('/api/vault');
+            const data = await res.json();
+            const allTags = [];
+            data.items?.forEach(item => {
+                if (item.tags) {
+                    allTags.push(...item.tags);
+                }
+            });
+            // Get 5 random unique tags
+            const uniqueTags = [...new Set(allTags)];
+            const randomTags = uniqueTags.sort(() => 0.5 - Math.random()).slice(0, 5);
+            setPopularTags(randomTags);
+        } catch (error) {
+            console.error('Failed to load tags:', error);
+        }
+    };
 
     async function searchNotesWithQuery(searchQuery: string) {
         if (!searchQuery.trim()) return;
@@ -30,7 +53,11 @@ export default function SearchPage() {
         });
 
         const data = await res.json();
-        setResults(data.results || data.notes || []);
+        // Limit to top 3 results and sort by similarity
+        const sortedResults = (data.results || data.notes || [])
+            .sort((a, b) => (b.similarity || b.score || 0) - (a.similarity || a.score || 0))
+            .slice(0, 3);
+        setResults(sortedResults);
         setLoading(false);
     }
 
@@ -42,6 +69,16 @@ export default function SearchPage() {
         if (e.key === 'Enter') {
             searchNotes();
         }
+    };
+
+    const handleTagClick = (tag: string) => {
+        setQuery(tag);
+        searchNotesWithQuery(tag);
+    };
+
+    const handleView = (item) => {
+        setSelectedItem(item);
+        setShowViewModal(true);
     };
 
     return (
@@ -80,6 +117,24 @@ export default function SearchPage() {
                             Search
                         </button>
                     </div>
+                    
+                    {/* Popular Tags */}
+                    {popularTags.length > 0 && (
+                        <div className="mt-4">
+                            <p className="text-sm text-gray-400 mb-2">Popular tags:</p>
+                            <div className="flex flex-wrap gap-2">
+                                {popularTags.map((tag, idx) => (
+                                    <button
+                                        key={idx}
+                                        onClick={() => handleTagClick(tag)}
+                                        className="px-3 py-1 bg-[#0D0D0F] border border-[#1c1c1e] rounded-lg text-xs text-gray-300 hover:border-[#43234A] hover:text-[#00E0FF] transition"
+                                    >
+                                        {tag}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 {/* Loading State */}
@@ -90,21 +145,61 @@ export default function SearchPage() {
                     </div>
                 )}
 
+                {/* Results Header */}
+                {results.length > 0 && (
+                    <div className="max-w-2xl mx-auto mb-4">
+                        <h3 className="text-lg font-medium">Top {results.length} Results</h3>
+                        <p className="text-sm text-gray-400">Showing most accurate matches</p>
+                    </div>
+                )}
+
                 {/* Results */}
                 <div className="max-w-2xl mx-auto space-y-4">
-                    {results.map((note) => (
-                        <div
-                            key={note.id}
-                            className="bg-[#111113] p-4 rounded-xl border border-[#1c1c1e] hover:bg-[#161618] transition cursor-pointer"
-                        >
-                            <h3 className="font-medium mb-2">{note.title}</h3>
-                            <p className="text-gray-300 text-sm mb-3">{note.content}</p>
-                            <div className="flex justify-between items-center text-xs text-gray-500">
-                                <span>Relevance: {((note.similarity || note.score || 0) * 100).toFixed(1)}%</span>
-                                <span>{note.type === 'vault' ? 'Vault' : 'Note'} #{note.id}</span>
+                    {results.map((note, index) => {
+                        const accuracy = ((note.similarity || note.score || 0) * 100);
+                        const isHighAccuracy = accuracy >= 70;
+                        return (
+                            <div
+                                key={note.id}
+                                className={`bg-[#111113] p-4 rounded-xl border transition cursor-pointer ${
+                                    isHighAccuracy 
+                                        ? 'border-[#43234A]/50 bg-[#43234A]/5' 
+                                        : 'border-[#1c1c1e] hover:bg-[#161618]'
+                                }`}
+                            >
+                                <div className="flex items-start justify-between">
+                                    <div className="flex-1">
+                                        <div className="flex items-center gap-2 mb-2">
+                                            <h3 className="font-medium">{note.title}</h3>
+                                            {isHighAccuracy && (
+                                                <span className="px-2 py-1 bg-[#43234A]/20 border border-[#43234A]/30 rounded text-xs text-[#00E0FF]">
+                                                    High Match
+                                                </span>
+                                            )}
+                                        </div>
+                                        <p className="text-gray-300 text-sm mb-3 line-clamp-2">
+                                            {note.content?.substring(0, 150)}{note.content?.length > 150 ? '...' : ''}
+                                        </p>
+                                        <div className="flex justify-between items-center text-xs text-gray-500">
+                                            <span className={isHighAccuracy ? 'text-[#00E0FF] font-medium' : ''}>
+                                                Accuracy: {accuracy.toFixed(1)}%
+                                            </span>
+                                            <span>{note.type === 'vault' ? 'Vault' : 'Note'} #{note.id}</span>
+                                        </div>
+                                    </div>
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleView(note);
+                                        }}
+                                        className="ml-3 p-2 bg-[#0D0D0F] rounded-lg border border-[#1c1c1e] hover:bg-[#161618] transition"
+                                    >
+                                        <Eye size={14} className="text-gray-400" />
+                                    </button>
+                                </div>
                             </div>
-                        </div>
-                    ))}
+                        );
+                    })}
                 </div>
 
                 {/* No Results */}
@@ -114,10 +209,92 @@ export default function SearchPage() {
                             <Search size={24} className="text-gray-400" />
                         </div>
                         <h3 className="text-lg font-medium mb-2">No results found</h3>
-                        <p className="text-gray-400">Try adjusting your search terms</p>
+                        <p className="text-gray-400 mb-4">Try adjusting your search terms or use popular tags</p>
+                        {popularTags.length > 0 && (
+                            <div className="flex flex-wrap gap-2 justify-center">
+                                {popularTags.map((tag, idx) => (
+                                    <button
+                                        key={idx}
+                                        onClick={() => handleTagClick(tag)}
+                                        className="px-3 py-1 bg-[#0D0D0F] border border-[#1c1c1e] rounded-lg text-xs text-gray-300 hover:border-[#43234A] hover:text-[#00E0FF] transition"
+                                    >
+                                        {tag}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
                     </div>
                 )}
             </main>
+
+            {/* View Item Modal */}
+            {showViewModal && selectedItem && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+                    <div className="bg-[#111113] rounded-2xl border border-[#1c1c1e] w-full max-w-2xl max-h-[80vh] overflow-hidden">
+                        <div className="flex justify-between items-center p-4 border-b border-[#1c1c1e]">
+                            <h3 className="font-medium text-lg">{selectedItem.title}</h3>
+                            <button onClick={() => setShowViewModal(false)} className="p-1 hover:bg-[#161618] rounded">
+                                <X size={16} />
+                            </button>
+                        </div>
+                        
+                        <div className="p-6 overflow-y-auto max-h-[60vh]">
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-sm text-gray-400 mb-2">Type</label>
+                                    <div className="flex items-center gap-2">
+                                        {selectedItem.type === "document" ? (
+                                            <FileText size={16} className="text-gray-400" />
+                                        ) : selectedItem.type === "card" ? (
+                                            <CreditCard size={16} className="text-gray-400" />
+                                        ) : (
+                                            <IdCard size={16} className="text-gray-400" />
+                                        )}
+                                        <span className="capitalize">{selectedItem.type}</span>
+                                    </div>
+                                </div>
+                                
+                                {selectedItem.content && (
+                                    <div>
+                                        <label className="block text-sm text-gray-400 mb-2">Content</label>
+                                        <div className="bg-[#0D0D0F] border border-[#1c1c1e] rounded-lg p-4">
+                                            <p className="text-gray-200 whitespace-pre-wrap">{selectedItem.content}</p>
+                                        </div>
+                                    </div>
+                                )}
+                                
+                                {selectedItem.tags && selectedItem.tags.length > 0 && (
+                                    <div>
+                                        <label className="block text-sm text-gray-400 mb-2">Tags</label>
+                                        <div className="flex flex-wrap gap-2">
+                                            {selectedItem.tags.map((tag, idx) => (
+                                                <span key={idx} className="px-3 py-1 bg-[#43234A]/20 border border-[#43234A]/30 rounded-lg text-xs text-[#00E0FF]">
+                                                    {tag}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                                
+                                <div>
+                                    <label className="block text-sm text-gray-400 mb-2">Match Accuracy</label>
+                                    <div className="flex items-center gap-2">
+                                        <div className="flex-1 bg-[#0D0D0F] rounded-full h-2">
+                                            <div 
+                                                className="bg-[#43234A] h-2 rounded-full transition-all duration-300"
+                                                style={{ width: `${((selectedItem.similarity || selectedItem.score || 0) * 100)}%` }}
+                                            ></div>
+                                        </div>
+                                        <span className="text-sm text-[#00E0FF] font-medium">
+                                            {((selectedItem.similarity || selectedItem.score || 0) * 100).toFixed(1)}%
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Bottom Navigation */}
             <footer className="w-full bg-[#0D0D0F] border-t border-[#1c1c1e] py-3 flex justify-around text-gray-400">

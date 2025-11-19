@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Shield, Settings, Home, Key, User, Plus, FileText, CreditCard, IdCard, X, Upload, Tag } from "lucide-react";
+import { Shield, Settings, Home, Key, User, Plus, FileText, CreditCard, IdCard, X, Upload, Tag, Eye, Trash2 } from "lucide-react";
 import Link from "next/link";
 
 export default function VaultPage() {
@@ -15,6 +15,11 @@ export default function VaultPage() {
     type: "document",
     category: "Recent files"
   });
+  const [suggestedTags, setSuggestedTags] = useState([]);
+  const [selectedTags, setSelectedTags] = useState([]);
+  const [showViewModal, setShowViewModal] = useState(false);
+  const [selectedItem, setSelectedItem] = useState(null);
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
 
   useEffect(() => {
     loadItems();
@@ -42,7 +47,7 @@ export default function VaultPage() {
         body: JSON.stringify({
           title: formData.title,
           content: formData.content,
-          tags: formData.tags.split(',').map(tag => tag.trim()).filter(Boolean),
+          tags: selectedTags.length > 0 ? selectedTags : formData.tags.split(',').map(tag => tag.trim()).filter(Boolean),
           type: formData.type,
           category: formData.category
         })
@@ -51,11 +56,54 @@ export default function VaultPage() {
       if (res.ok) {
         await loadItems();
         setFormData({ title: "", content: "", tags: "", type: "document", category: "Recent files" });
+        setSuggestedTags([]);
+        setSelectedTags([]);
         setShowAddModal(false);
       }
     } catch (error) {
       console.error('Failed to add item:', error);
     }
+  };
+
+  const generateTags = async () => {
+    if (!formData.title && !formData.content) return;
+    
+    try {
+      const res = await fetch('/api/generate-tags', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: formData.title, content: formData.content })
+      });
+      const data = await res.json();
+      setSuggestedTags(data.tags || []);
+    } catch (error) {
+      console.error('Failed to generate tags:', error);
+    }
+  };
+
+  const toggleTag = (tag) => {
+    setSelectedTags(prev => 
+      prev.includes(tag) 
+        ? prev.filter(t => t !== tag)
+        : [...prev, tag]
+    );
+  };
+
+  const handleDelete = async (id) => {
+    try {
+      const res = await fetch(`/api/vault?id=${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        await loadItems();
+        setDeleteConfirm(null);
+      }
+    } catch (error) {
+      console.error('Failed to delete item:', error);
+    }
+  };
+
+  const handleView = (item) => {
+    setSelectedItem(item);
+    setShowViewModal(true);
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -118,16 +166,36 @@ export default function VaultPage() {
                 </div>
                 <div className="flex-1">
                   <h3 className="font-medium">{item.title}</h3>
-                  <p className="text-sm text-gray-400">{item.category} • {item.lastAccessed}</p>
+                  <p className="text-sm text-gray-400">{item.category} • {new Date(item.createdAt).toLocaleDateString()}</p>
                   {item.tags && item.tags.length > 0 && (
                     <div className="flex gap-1 mt-1">
                       {item.tags.slice(0, 3).map((tag, idx) => (
-                        <span key={idx} className="text-xs bg-[#0D0D0F] px-2 py-1 rounded border border-[#1c1c1e] text-gray-400">
+                        <span key={idx} className="text-xs bg-vault-input px-2 py-1 rounded border border-vault-border text-gray-400">
                           {tag}
                         </span>
                       ))}
                     </div>
                   )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleView(item);
+                    }}
+                    className="p-2 bg-vault-input rounded-lg border border-vault-border hover:bg-vault-hover transition"
+                  >
+                    <Eye size={14} className="text-gray-400" />
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setDeleteConfirm(item.id);
+                    }}
+                    className="p-2 text-red-400 hover:bg-red-400/10 rounded-lg transition"
+                  >
+                    <Trash2 size={14} />
+                  </button>
                 </div>
               </div>
             </div>
@@ -194,20 +262,45 @@ export default function VaultPage() {
                 <textarea
                   value={formData.content}
                   onChange={(e) => setFormData(prev => ({ ...prev, content: e.target.value }))}
-                  className="w-full bg-[#0D0D0F] border border-[#1c1c1e] rounded-lg px-3 py-2 text-sm h-20 resize-none"
+                  onBlur={generateTags}
+                  className="w-full bg-vault-input border border-vault-border rounded-lg px-3 py-2 text-sm h-20 resize-none"
                   placeholder="Add notes or content"
                 />
               </div>
               
-              <div>
-                <label className="block text-sm text-gray-400 mb-2">Tags (comma separated)</label>
-                <input
-                  value={formData.tags}
-                  onChange={(e) => setFormData(prev => ({ ...prev, tags: e.target.value }))}
-                  className="w-full bg-[#0D0D0F] border border-[#1c1c1e] rounded-lg px-3 py-2 text-sm"
-                  placeholder="finance, important, 2024"
-                />
-              </div>
+              {suggestedTags.length > 0 && (
+                <div>
+                  <label className="block text-sm text-gray-400 mb-2">Suggested Tags (click to select)</label>
+                  <div className="flex flex-wrap gap-2">
+                    {suggestedTags.map((tag, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => toggleTag(tag)}
+                        className={`px-3 py-1 rounded-lg text-xs border transition ${
+                          selectedTags.includes(tag)
+                            ? 'bg-vault-accent border-vault-accent text-white'
+                            : 'bg-vault-input border-vault-border text-gray-400 hover:border-vault-accent'
+                        }`}
+                      >
+                        {tag}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
+              {selectedTags.length === 0 && (
+                <div>
+                  <label className="block text-sm text-gray-400 mb-2">Tags (comma separated)</label>
+                  <input
+                    value={formData.tags}
+                    onChange={(e) => setFormData(prev => ({ ...prev, tags: e.target.value }))}
+                    className="w-full bg-vault-input border border-vault-border rounded-lg px-3 py-2 text-sm"
+                    placeholder="finance, important, 2024"
+                  />
+                </div>
+              )}
               
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -215,7 +308,7 @@ export default function VaultPage() {
                   <select
                     value={formData.type}
                     onChange={(e) => setFormData(prev => ({ ...prev, type: e.target.value }))}
-                    className="w-full bg-[#0D0D0F] border border-[#1c1c1e] rounded-lg px-3 py-2 text-sm"
+                    className="w-full bg-vault-input border border-vault-border rounded-lg px-3 py-2 text-sm"
                   >
                     <option value="document">Document</option>
                     <option value="card">Card</option>
@@ -228,7 +321,7 @@ export default function VaultPage() {
                   <select
                     value={formData.category}
                     onChange={(e) => setFormData(prev => ({ ...prev, category: e.target.value }))}
-                    className="w-full bg-[#0D0D0F] border border-[#1c1c1e] rounded-lg px-3 py-2 text-sm"
+                    className="w-full bg-vault-input border border-vault-border rounded-lg px-3 py-2 text-sm"
                   >
                     <option value="Recent files">Recent files</option>
                     <option value="Cards">Cards</option>
@@ -239,18 +332,106 @@ export default function VaultPage() {
               </div>
             </div>
             
-            <div className="flex gap-3 p-4 border-t border-[#1c1c1e]">
+            <div className="flex gap-3 p-4 border-t border-vault-border">
               <button
                 onClick={() => setShowAddModal(false)}
-                className="flex-1 py-2 bg-[#0D0D0F] border border-[#1c1c1e] rounded-lg text-sm hover:bg-[#161618] transition"
+                className="flex-1 py-2 bg-vault-input border border-vault-border rounded-lg text-sm hover:bg-vault-hover transition"
               >
                 Cancel
               </button>
               <button
                 onClick={handleAddItem}
-                className="flex-1 py-2 bg-[#43234A] text-white rounded-lg text-sm hover:bg-[#5e2c65] transition"
+                className="flex-1 py-2 bg-vault-accent text-white rounded-lg text-sm hover:bg-vault-accent-hover transition"
               >
                 Add Item
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* View Item Modal */}
+      {showViewModal && selectedItem && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50">
+          <div className="bg-[#111113] rounded-2xl border border-[#1c1c1e] w-full max-w-2xl max-h-[80vh] overflow-hidden">
+            <div className="flex justify-between items-center p-4 border-b border-[#1c1c1e]">
+              <h3 className="font-medium text-lg">{selectedItem.title}</h3>
+              <button onClick={() => setShowViewModal(false)} className="p-1 hover:bg-[#161618] rounded">
+                <X size={16} />
+              </button>
+            </div>
+            
+            <div className="p-6 overflow-y-auto max-h-[60vh]">
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm text-gray-400 mb-2">Type</label>
+                  <div className="flex items-center gap-2">
+                    {selectedItem.type === "document" ? (
+                      <FileText size={16} className="text-gray-400" />
+                    ) : selectedItem.type === "card" ? (
+                      <CreditCard size={16} className="text-gray-400" />
+                    ) : (
+                      <IdCard size={16} className="text-gray-400" />
+                    )}
+                    <span className="capitalize">{selectedItem.type}</span>
+                  </div>
+                </div>
+                
+                <div>
+                  <label className="block text-sm text-gray-400 mb-2">Category</label>
+                  <p className="text-gray-200">{selectedItem.category}</p>
+                </div>
+                
+                {selectedItem.content && (
+                  <div>
+                    <label className="block text-sm text-gray-400 mb-2">Content</label>
+                    <div className="bg-[#0D0D0F] border border-[#1c1c1e] rounded-lg p-4">
+                      <p className="text-gray-200 whitespace-pre-wrap">{selectedItem.content}</p>
+                    </div>
+                  </div>
+                )}
+                
+                {selectedItem.tags && selectedItem.tags.length > 0 && (
+                  <div>
+                    <label className="block text-sm text-gray-400 mb-2">Tags</label>
+                    <div className="flex flex-wrap gap-2">
+                      {selectedItem.tags.map((tag, idx) => (
+                        <span key={idx} className="px-3 py-1 bg-[#43234A]/20 border border-[#43234A]/30 rounded-lg text-xs text-[#00E0FF]">
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                
+                <div>
+                  <label className="block text-sm text-gray-400 mb-2">Created</label>
+                  <p className="text-gray-200">{new Date(selectedItem.createdAt).toLocaleString()}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirm && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50">
+          <div className="bg-[#111113] rounded-2xl border border-[#1c1c1e] w-full max-w-sm p-6">
+            <h3 className="text-lg font-medium mb-4">Delete Item</h3>
+            <p className="text-gray-400 mb-6">Are you sure you want to delete this item? This action cannot be undone.</p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setDeleteConfirm(null)}
+                className="flex-1 py-2 bg-[#0D0D0F] border border-[#1c1c1e] rounded-lg text-sm hover:bg-[#161618] transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleDelete(deleteConfirm)}
+                className="flex-1 py-2 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700 transition"
+              >
+                Delete
               </button>
             </div>
           </div>

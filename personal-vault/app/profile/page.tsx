@@ -1,9 +1,24 @@
 "use client";
 
-import { Shield, Settings, Home, Key, User, Lock, Database, Download, Trash2 } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Shield, Settings, Home, Key, User, Lock, Database, Download, Trash2, LogOut } from "lucide-react";
 import Link from "next/link";
 
 export default function ProfilePage() {
+  const [user, setUser] = useState(null);
+
+  useEffect(() => {
+    const userData = localStorage.getItem("user");
+    if (userData) {
+      setUser(JSON.parse(userData));
+    }
+  }, []);
+
+  const handleLogout = () => {
+    localStorage.removeItem("user");
+    window.location.href = "/auth/login";
+  };
+
   return (
     <div className="min-h-screen bg-[#0B0B0D] text-white flex flex-col justify-between">
       {/* Top Bar */}
@@ -15,8 +30,8 @@ export default function ProfilePage() {
           <h1 className="text-lg font-medium">Profile</h1>
         </div>
 
-        <button className="p-2 bg-[#111113] rounded-xl border border-[#1c1c1e] hover:bg-[#161618] transition">
-          <Settings size={18} />
+        <button onClick={handleLogout} className="p-2 bg-[#111113] rounded-xl border border-[#1c1c1e] hover:bg-[#161618] transition">
+          <LogOut size={18} />
         </button>
       </header>
 
@@ -29,8 +44,9 @@ export default function ProfilePage() {
               <User size={24} className="text-white" />
             </div>
             <div>
-              <h2 className="text-xl font-semibold">Personal Vault</h2>
-              <p className="text-gray-400">Local encryption enabled</p>
+              <h2 className="text-xl font-semibold">{user?.name || user?.email?.split('@')[0] || 'User'}</h2>
+              <p className="text-gray-400">{user?.email || 'user@example.com'}</p>
+              <p className="text-xs text-[#00E0FF] mt-1">Local encryption enabled</p>
             </div>
           </div>
         </div>
