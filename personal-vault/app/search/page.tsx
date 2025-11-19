@@ -181,9 +181,16 @@ export default function SearchPage() {
                                             {note.content?.substring(0, 150)}{note.content?.length > 150 ? '...' : ''}
                                         </p>
                                         <div className="flex justify-between items-center text-xs text-gray-500">
-                                            <span className={isHighAccuracy ? 'text-[#00E0FF] font-medium' : ''}>
-                                                Accuracy: {accuracy.toFixed(1)}%
-                                            </span>
+                                            <div className="flex items-center gap-2">
+                                                <span className={`px-2 py-1 rounded text-xs font-medium ${
+                                                    accuracy >= 90 ? 'bg-green-500/20 text-green-400 border border-green-500/30' :
+                                                    accuracy >= 70 ? 'bg-[#43234A]/20 text-[#00E0FF] border border-[#43234A]/30' :
+                                                    accuracy >= 50 ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30' :
+                                                    'bg-red-500/20 text-red-400 border border-red-500/30'
+                                                }`}>
+                                                    {accuracy.toFixed(1)}% Match
+                                                </span>
+                                            </div>
                                             <span>{note.type === 'vault' ? 'Vault' : 'Note'} #{note.id}</span>
                                         </div>
                                     </div>

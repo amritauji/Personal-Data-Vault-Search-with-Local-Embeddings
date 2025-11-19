@@ -1,13 +1,38 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Shield, Settings, Home, Key, User, Search } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 export default function HomePage() {
   const [query, setQuery] = useState("");
+  const [popularTags, setPopularTags] = useState(["Recent files", "Passwords", "Cards", "IDs"]);
   const router = useRouter();
+
+  useEffect(() => {
+    loadPopularTags();
+  }, []);
+
+  const loadPopularTags = async () => {
+    try {
+      const res = await fetch('/api/vault');
+      const data = await res.json();
+      const allTags = [];
+      data.items?.forEach(item => {
+        if (item.tags) {
+          allTags.push(...item.tags);
+        }
+      });
+      const uniqueTags = [...new Set(allTags)];
+      if (uniqueTags.length > 0) {
+        const randomTags = uniqueTags.sort(() => 0.5 - Math.random()).slice(0, 4);
+        setPopularTags(randomTags);
+      }
+    } catch (error) {
+      console.error('Failed to load tags:', error);
+    }
+  };
 
   const handleSearch = () => {
     if (query.trim()) {
@@ -38,9 +63,9 @@ export default function HomePage() {
             Private
           </span>
 
-          <button className="p-2 bg-[#111113] rounded-xl border border-[#1c1c1e] hover:bg-[#161618] transition">
-            <Settings size={18} />
-          </button>
+          <Link href="/auth/login" className="p-2 bg-[#111113] rounded-xl border border-[#1c1c1e] hover:bg-[#161618] transition">
+            <User size={18} />
+          </Link>
         </div>
       </header>
 
@@ -87,9 +112,10 @@ export default function HomePage() {
 
           {/* Categories */}
           <div className="flex flex-wrap gap-3 mt-5">
-            {["Recent files", "Passwords", "Cards", "IDs"].map((item) => (
+            {popularTags.map((item) => (
               <button
                 key={item}
+                onClick={() => router.push(`/search?q=${encodeURIComponent(item)}`)}
                 className="px-4 py-2 bg-[#0D0D0F] rounded-xl text-sm border border-[#1c1c1e] text-gray-300 hover:bg-[#161618] transition"
               >
                 {item}
@@ -103,9 +129,9 @@ export default function HomePage() {
         </div>
 
         {/* Assistant Button */}
-        <button className="mt-6 bg-[#43234A] text-white px-5 py-3 rounded-xl text-sm shadow-lg hover:bg-[#5e2c65] transition">
-          🤖 I can help you find anything
-        </button>
+        <Link href="/chat" className="mt-6 bg-[#43234A] text-white px-5 py-3 rounded-xl text-sm shadow-lg hover:bg-[#5e2c65] transition inline-block">
+          🤖 Ask me about your vault
+        </Link>
       </main>
 
       {/* Bottom Navigation */}

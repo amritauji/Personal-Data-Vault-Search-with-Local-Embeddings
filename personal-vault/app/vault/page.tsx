@@ -170,20 +170,27 @@ export default function VaultPage() {
                   {item.tags && item.tags.length > 0 && (
                     <div className="flex gap-1 mt-1">
                       {item.tags.slice(0, 3).map((tag, idx) => (
-                        <span key={idx} className="text-xs bg-vault-input px-2 py-1 rounded border border-vault-border text-gray-400">
+                        <button 
+                          key={idx} 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            window.location.href = `/search?q=${encodeURIComponent(tag)}`;
+                          }}
+                          className="text-xs bg-[#0D0D0F] px-2 py-1 rounded border border-[#1c1c1e] text-gray-400 hover:border-[#43234A] hover:text-[#00E0FF] transition cursor-pointer"
+                        >
                           {tag}
-                        </span>
+                        </button>
                       ))}
                     </div>
                   )}
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 shrink-0">
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
                       handleView(item);
                     }}
-                    className="p-2 bg-vault-input rounded-lg border border-vault-border hover:bg-vault-hover transition"
+                    className="p-2 bg-[#0D0D0F] rounded-lg border border-[#1c1c1e] hover:bg-[#161618] transition w-8 h-8 flex items-center justify-center"
                   >
                     <Eye size={14} className="text-gray-400" />
                   </button>
@@ -192,7 +199,7 @@ export default function VaultPage() {
                       e.stopPropagation();
                       setDeleteConfirm(item.id);
                     }}
-                    className="p-2 text-red-400 hover:bg-red-400/10 rounded-lg transition"
+                    className="p-2 text-red-400 hover:bg-red-400/10 rounded-lg transition w-8 h-8 flex items-center justify-center"
                   >
                     <Trash2 size={14} />
                   </button>
